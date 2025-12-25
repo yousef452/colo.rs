@@ -1,4 +1,4 @@
-# boost
+# colo.rs
 draw once, render everywhere
 
 the i took the idea from:
