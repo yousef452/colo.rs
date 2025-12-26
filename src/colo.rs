@@ -1,4 +1,7 @@
 use std::collections::HashSet;
+use image::{ImageBuffer, Rgb};
+use rusttype::{Font, Scale,point};
+use std::fs;
 
 #[derive(Clone, Copy,PartialEq, Eq, Hash)]
 pub struct Vector {
@@ -82,8 +85,9 @@ impl Vector {
 }
 
 #[derive(Debug)]
-pub enum SystemErrors {
+pub enum Errors {
     OutIndex,
+    FontFiled
 }
 
 pub struct System {
@@ -126,17 +130,17 @@ impl System {
         (self.width, self.height)
     }
 
-    pub fn get_pixel(&self,x : usize,y : usize) -> Result<Color,SystemErrors> {
+    pub fn get_pixel(&self,x : usize,y : usize) -> Result<Color,Errors> {
         if x > self.width || y > self.height {
-            Err(SystemErrors::OutIndex)
+            Err(Errors::OutIndex)
         } else {
             Ok(self.pixels[y][x])
         }
     }
 
-    pub fn get_pixel_v(&self,v : Vector) -> Result<Color,SystemErrors> {
+    pub fn get_pixel_v(&self,v : Vector) -> Result<Color,Errors> {
         if v.x > self.width.try_into().unwrap() || v.y > self.height.try_into().unwrap(){
-            Err(SystemErrors::OutIndex)
+            Err(Errors::OutIndex)
         } else {
             Ok(self.pixels[v.y as usize][v.x as usize])
         }
@@ -163,6 +167,21 @@ impl System {
     }
     pub fn in_bounds(&self, pos: Vector) -> bool {
         pos.x >= 0 && pos.y >= 0 && pos.x < self.width.try_into().unwrap() && pos.y < self.height.try_into().unwrap()
+    }
+
+    pub fn image(&self,file_path : &str) {
+        let mut img = ImageBuffer::new(
+            self.width.try_into().unwrap(),
+            self.height.try_into().unwrap()
+        );
+        for (x, y, pixel) in img.enumerate_pixels_mut() {
+            let (red, green, blue) = self.get_pixel(
+                x.try_into().unwrap(),
+                y.try_into().unwrap()
+            ).unwrap().get_rgb();
+            *pixel = Rgb([red, green, blue]);
+        }
+        img.save(file_path).unwrap();
     }
 }
 
@@ -233,8 +252,10 @@ impl Color {
         return (self.red, self.green, self.blue,self.alpha)
     }
 }
-pub trait Shape {
+// Displayable
+pub trait Disp {
     fn display(&mut self,sys : &mut System);
+    fn vertix(&mut self,sys : &mut System);
 }
 
 #[derive(Clone)]
@@ -264,8 +285,42 @@ impl Line {
     }
 }
 
-impl Shape for Line {
+impl Disp for Line {
     fn display(&mut self, sys: &mut System) {
+        let dx = (self.point2.get_x() - self.point1.get_x()).abs();
+        let dy = (self.point2.get_y() - self.point1.get_y()).abs();
+
+        let sx = if self.point1.get_x() < self.point2.get_x() { 1 } else { -1 };
+        let sy = if self.point1.get_y() < self.point2.get_y() { 1 } else { -1 };
+
+        let mut err = dx - dy;
+
+        let mut working_vec = self.point1.clone();
+        self.vectors = vec![];
+
+        loop {
+            sys.insert_v(self.color.clone(), working_vec.clone());
+            self.vectors.push(working_vec.clone());
+
+
+            if working_vec.is_equle_v(self.point2.clone()) {
+                break;
+            }
+
+            let e2 = 2 * err;
+
+            if e2 > -dy {
+                err -= dy;
+                working_vec.change_x(sx);
+            }
+            if e2 < dx {
+                err += dx;
+                working_vec.change_y(sy);
+            }
+        }
+    }
+
+    fn vertix(&mut self, sys: &mut System) {
         let dx = (self.point2.get_x() - self.point1.get_x()).abs();
         let dy = (self.point2.get_y() - self.point1.get_y()).abs();
 
@@ -327,12 +382,11 @@ impl Triangle {
 
 
 
-impl Shape for Triangle {
+impl Disp for Triangle {
     fn display(&mut self,sys : &mut System) {
-        let mut line1 = Line::init(self.point1.clone(),self.point2.clone(),self.color.clone());
-        let mut line2 = Line::init(self.point2.clone(),self.point3.clone(),self.color.clone());
-        let mut line3 = Line::init(self.point3.clone(),self.point1.clone(),self.color.clone());
-
+        let mut line1 = Line::init(self.point1,self.point2,self.color);
+        let mut line2 = Line::init(self.point2,self.point3,self.color);
+        let mut line3 = Line::init(self.point3,self.point1,self.color);
         line1.display(sys);
         line2.display(sys);
         line3.display(sys);
@@ -366,6 +420,12 @@ impl Shape for Triangle {
             }
         }
     }
+
+    fn vertix(&mut self,sys : &mut System) {
+        Line::init(self.point1,self.point2,self.color).display(sys);
+        Line::init(self.point2,self.point3,self.color).display(sys);
+        Line::init(self.point3,self.point1,self.color).display(sys);
+    }
 }
 
 #[derive(Clone)]
@@ -389,7 +449,7 @@ impl Circle {
     }
 }
 
-impl Shape for Circle {
+impl Disp for Circle {
     fn display(&mut self, sys: &mut System) {
         let mut x = 0;
         let mut y = self.radius as isize;
@@ -420,6 +480,36 @@ impl Shape for Circle {
             x += 1;
         }
     }
+
+    fn vertix(&mut self, sys: &mut System) {
+        let mut x = 0;
+        let mut y = self.radius as isize;
+
+        let mut p: isize = 1 - self.radius as isize;
+
+        while x <= y {
+            let cx = self.position.x;
+            let cy = self.position.y;
+
+            if p < 0 {
+                p += 2 * x + 3;
+            }
+            else {
+                p += 2 * (x - y) + 5;
+                y -= 1;
+            }
+            x += 1;
+
+            sys.insert_v(self.color, Vector::init(cx + x, cy + y));
+            sys.insert_v(self.color, Vector::init(cx - x, cy + y));
+            sys.insert_v(self.color, Vector::init(cx + x, cy - y));
+            sys.insert_v(self.color, Vector::init(cx - x, cy - y));
+            sys.insert_v(self.color, Vector::init(cx + y, cy + x));
+            sys.insert_v(self.color, Vector::init(cx + y, cy - x));
+            sys.insert_v(self.color, Vector::init(cx - y, cy + x));
+            sys.insert_v(self.color, Vector::init(cx - y, cy - x));
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -448,13 +538,24 @@ impl Rectangle {
 }
 
 
-impl Shape for Rectangle {
+impl Disp for Rectangle {
     fn display(&mut self, sys: &mut System) {
         for row in 0..self.height {
             for col in 0..self.width {
                 sys.insert_v(self.color, self.position.add(col, row));
             }
         }
+    }
+
+    fn vertix(&mut self, sys: &mut System) {
+        let top_left = self.position;
+        let top_right = self.position.add(self.width,0);
+        let bottom_right = self.position.add(self.width,self.height);
+        let bottom_left = self.position.add(0,self.height);
+        Line::init(top_left,top_right,self.color).vertix(sys);
+        Line::init(top_right,bottom_right,self.color).vertix(sys);
+        Line::init(bottom_right,bottom_left,self.color).vertix(sys);
+        Line::init(bottom_left,top_left,self.color).vertix(sys);
     }
 }
 
@@ -535,8 +636,8 @@ impl ConnectPoint {
 
 #[derive(Clone)]
 pub struct Polygon {
-    points : Vec<Vector>,
-    color : Color
+    pub points : Vec<Vector>,
+    pub color : Color
 }
 
 impl Polygon {
@@ -551,7 +652,7 @@ impl Polygon {
     }
 }
 
-impl Shape for Polygon {
+impl Disp for Polygon {
     fn display(&mut self,sys : &mut System) {
         let mut lines: Vec<Line> = vec![];
         let points_len = self.points.len();
@@ -570,9 +671,78 @@ impl Shape for Polygon {
 
         let mut visited = HashSet::new();
 
-        let mut start_point =
-            ConnectPoint::init(vectors[0].add(10,10), self.color);
+        let mut start_point = ConnectPoint::init(vectors[0].add(10,10), self.color);
 
         start_point.generate(sys, &vectors, &mut visited);
+    }
+
+    fn vertix(&mut self,sys : &mut System) {
+        let points_len = self.points.len();
+        for p in 0..points_len {
+            Line::init(self.points[p],self.points[(p+1)%points_len],self.color).vertix(sys);
+        }
+    }
+}
+
+pub struct Text<'a> {
+    pub text : String,
+    scale : Scale,
+
+    pub font_path : String,
+    font : Font<'a>,
+    pub position : Vector,
+}
+
+impl Text<'_> {
+    pub fn init(
+        text: String,
+        font_path: String,
+        scale_x: f32,
+        scale_y: f32,
+        position : Vector,
+    ) -> Result<Self, Errors> {
+
+        let font_data = fs::read(&font_path)
+            .map_err(|_| Errors::FontFiled)?;
+
+        let font = Font::try_from_vec(font_data)
+            .ok_or(Errors::FontFiled)?;
+
+        Ok(Self {
+            text,
+            font_path,
+            scale: Scale {
+                x: scale_x,
+                y: scale_y,
+            },
+            position,
+            font,
+        })
+    }
+}
+
+impl Disp for Text<'_> {
+    fn display(&mut self,sys : &mut System) {
+        let mut cursor_x = 0.0;
+        for c in self.text.chars() {
+            let glyph = self.font.glyph(c).scaled(self.scale).positioned(point(cursor_x, self.scale.y));
+            if let Some(bb) = glyph.pixel_bounding_box() {
+                glyph.draw(|x, y, v| {
+                    if let Some(_) = glyph.pixel_bounding_box() {
+                        let px: isize = (self.position.get_x() + (x as i32 + bb.min.x) as isize).try_into().unwrap();
+                        let py: isize = (self.position.get_y() + (y as i32 + bb.min.y) as isize).try_into().unwrap();
+                        if px >= 0 && py >= 0 && (px) < sys.get_width().try_into().unwrap() && (py) < sys.get_height().try_into().unwrap() {
+                            let intensity = (v * 255.0) as u8;
+                            sys.insert(Color::init_rgb(intensity,intensity,intensity), px, py);
+                        }
+                    }
+                });
+            }
+            cursor_x += glyph.unpositioned().h_metrics().advance_width;
+        }
+    }
+
+    fn vertix(&mut self,sys : &mut System) {
+        self.display(sys);
     }
 }
