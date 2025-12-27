@@ -1,6 +1,10 @@
 use std::collections::HashSet;
 use std::path::Path;
+<<<<<<< HEAD
 use image::{ImageBuffer, Rgb, GenericImageView, Pixel};
+=======
+use image::{ImageBuffer, Rgba, GenericImageView};
+>>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
 use rusttype::{Font, Scale,point};
 use std::fs;
 
@@ -92,9 +96,10 @@ pub enum Errors {
 }
 
 pub struct System {
-    height : usize,
-    width  : usize,
-    pixels : Vec<Vec<Color>>,
+    pub height : usize,
+    pub width  : usize,
+    pub bg_color : Color,
+    pixels : Vec<Vec<Color>>
 }
 
 impl System {
@@ -102,29 +107,38 @@ impl System {
         height : usize,
         width  : usize,
     ) -> Self {
-        let col = vec![Color::init(255,255,255,255);width];
+
+        let bg_color = Color::init(255,255,255,255);
+        let col = vec![bg_color;width];
         let pixels = vec![col.clone();height];
 
         Self {
             height,
             width,
-            pixels
+            pixels,
+            bg_color
         }
     }
 
     pub fn init(
         height : usize,
         width  : usize,
-        color  : Color
+        bg_color  : Color
     ) -> Self {
-        let col = vec![color;width];
+        let col = vec![bg_color;width];
         let pixels = vec![col.clone();height];
 
         Self {
             height,
             width,
-            pixels
+            pixels,
+            bg_color
         }
+    }
+
+    pub fn fill(&mut self) {
+        let col = vec![self.bg_color;self.width];
+        self.pixels = vec![col.clone();self.height];
     }
 
     pub fn get_size(&self) -> (usize, usize) {
@@ -148,15 +162,46 @@ impl System {
     }
 
     pub fn insert_v(&mut self,c : Color,v : Vector) {
+<<<<<<< HEAD
         let (x, y) = v.get_axis(); 
         if (x >= 0 && x < self.width.try_into().unwrap()) && (y >= 0 && y < self.height.try_into().unwrap() && c.alpha != 0) {
             self.pixels[y as usize][x as usize] = c;
         }
+=======
+        let (x, y) = v.get_axis();
+        self.insert(c,x,y)
+>>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
     }
 
     pub fn insert(&mut self,c : Color,x : isize,y : isize) {
         if (x >= 0 && x < self.width.try_into().unwrap()) && (y >= 0 && y < self.height.try_into().unwrap() && c.alpha != 0) {
+<<<<<<< HEAD
             self.pixels[y as usize][x as usize] = c;
+=======
+            let src_a = c.alpha as f32 / 255.0;
+            let dst_a = self.pixels[y as usize][x as usize].alpha as f32 / 255.0;
+
+            let out_red =
+                c.red as f32 * src_a +
+                self.pixels[y as usize][x as usize].red as f32 * (1.0 - src_a);
+
+            let out_green =
+                c.green as f32 * src_a +
+                self.pixels[y as usize][x as usize].green as f32 * (1.0 - src_a);
+
+            let out_blue =
+                c.blue as f32 * src_a +
+                self.pixels[y as usize][x as usize].blue as f32 * (1.0 - src_a);
+
+            let out_alpha =
+                src_a + dst_a * (1.0 - src_a);
+
+
+            self.pixels[y as usize][x as usize].red   = out_red.clamp(0.0, 255.0) as u8;
+            self.pixels[y as usize][x as usize].green= out_green.clamp(0.0, 255.0) as u8;
+            self.pixels[y as usize][x as usize].blue = out_blue.clamp(0.0, 255.0) as u8;
+            self.pixels[y as usize][x as usize].alpha= (out_alpha * 255.0).clamp(0.0, 255.0) as u8;
+>>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
         }
     }
 
@@ -176,11 +221,11 @@ impl System {
             self.height.try_into().unwrap()
         );
         for (x, y, pixel) in img.enumerate_pixels_mut() {
-            let (red, green, blue) = self.get_pixel(
+            let (red, green, blue, alpha) = self.get_pixel(
                 x.try_into().unwrap(),
                 y.try_into().unwrap()
-            ).unwrap().get_rgb();
-            *pixel = Rgb([red, green, blue]);
+            ).unwrap().get_rgba();
+            *pixel = Rgba([red, green, blue, alpha]);
         }
         img.save(file_path).unwrap();
     }
@@ -773,13 +818,24 @@ impl Disp for Text<'_> {
 
 pub struct Image {
     pub file_path : String,
+<<<<<<< HEAD
     pub position : Vector,
+=======
+    pub position  : Vector,
+    pub height    : usize,
+    pub width     : usize,
+>>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
 }
 
 impl Image {
     pub fn init(
         file_path : String,
         position : Vector,
+<<<<<<< HEAD
+=======
+        height    : usize,
+        width     : usize,
+>>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
     ) -> Result<Self, Errors> {
         _ = image::open(&Path::new(&file_path))
             .map_err(|_| Errors::FileFailed)?;
@@ -787,11 +843,17 @@ impl Image {
         Ok(Self {
             file_path,
             position,
+<<<<<<< HEAD
+=======
+            height,
+            width
+>>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
         })
     }
 }
 
 impl Disp for Image {
+<<<<<<< HEAD
     fn display(&mut self,sys : &mut System) {
         let img = image::open(&Path::new(&self.file_path))
             .map_err(|_| Errors::FileFailed).unwrap();
@@ -807,6 +869,30 @@ impl Disp for Image {
                 self.position.get_x() + x as isize,
                 self.position.get_y() + y as isize
             );
+=======
+    fn display(&mut self, sys: &mut System) {
+        let img = image::open(&Path::new(&self.file_path))
+            .map_err(|_| Errors::FileFailed)
+            .unwrap();
+
+        let (img_width, img_height) = img.dimensions();
+
+        let scale_x = img_width as f32 / self.width as f32;
+        let scale_y = img_height as f32 / self.height as f32;
+
+        for row in 0..self.height {
+            for col in 0..self.width {
+                let src_x = (col as f32 * scale_x) as u32;
+                let src_y = (row as f32 * scale_y) as u32;
+
+                let pixel = img.get_pixel(src_x, src_y);
+
+                sys.insert_v(
+                    Color::init(pixel[0], pixel[1], pixel[2], pixel[3]),
+                    self.position.add(col as isize, row as isize),
+                );
+            }
+>>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
         }
     }
 
