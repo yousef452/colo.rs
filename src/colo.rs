@@ -1,5 +1,6 @@
 use std::collections::HashSet;
-use image::{ImageBuffer, Rgb};
+use std::path::Path;
+use image::{ImageBuffer, Rgb, GenericImageView, Pixel};
 use rusttype::{Font, Scale,point};
 use std::fs;
 
@@ -87,7 +88,7 @@ impl Vector {
 #[derive(Debug)]
 pub enum Errors {
     OutIndex,
-    FontFiled
+    FileFailed
 }
 
 pub struct System {
@@ -148,13 +149,13 @@ impl System {
 
     pub fn insert_v(&mut self,c : Color,v : Vector) {
         let (x, y) = v.get_axis(); 
-        if (x >= 0 && x < self.width.try_into().unwrap()) && (y >= 0 && y < self.height.try_into().unwrap()) {
+        if (x >= 0 && x < self.width.try_into().unwrap()) && (y >= 0 && y < self.height.try_into().unwrap() && c.alpha != 0) {
             self.pixels[y as usize][x as usize] = c;
         }
     }
 
     pub fn insert(&mut self,c : Color,x : isize,y : isize) {
-        if (x >= 0 && x < self.width.try_into().unwrap()) && (y >= 0 && y < self.height.try_into().unwrap()) {
+        if (x >= 0 && x < self.width.try_into().unwrap()) && (y >= 0 && y < self.height.try_into().unwrap() && c.alpha != 0) {
             self.pixels[y as usize][x as usize] = c;
         }
     }
@@ -183,21 +184,41 @@ impl System {
         }
         img.save(file_path).unwrap();
     }
+
+    pub fn ascii(&self,grid_size : usize,text : String) {
+        let height_board = self.height/grid_size;
+        let width_board = self.width/grid_size;
+
+        for row in 0..height_board {
+            for col in 0..width_board {
+                let (r, g, b) = self.pixels[row*grid_size][col*grid_size].get_rgb();
+                if r == 0 && g == 0 && b == 0 {
+                    for _ in 0..text.len() {
+                        print!(" ");
+                    }
+                }
+                else {
+                    print!("\x1b[38;2;{};{};{}m{}\x1b[0m", r, g, b,text);
+                }
+            }
+            println!();
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct Color {
-    red   : u8,
-    blue  : u8,
-    green : u8,
-    alpha : u8,
+    pub red   : u8,
+    pub blue  : u8,
+    pub green : u8,
+    pub alpha : u8,
 }
 
 impl Color {
     pub fn init(
         red   : u8,
-        blue  : u8,
         green : u8,
+        blue  : u8,
         alpha : u8,
     ) -> Self {
         Self {
@@ -691,6 +712,7 @@ pub struct Text<'a> {
     pub font_path : String,
     font : Font<'a>,
     pub position : Vector,
+    pub color : Color
 }
 
 impl Text<'_> {
@@ -700,13 +722,14 @@ impl Text<'_> {
         scale_x: f32,
         scale_y: f32,
         position : Vector,
+        color : Color
     ) -> Result<Self, Errors> {
 
         let font_data = fs::read(&font_path)
-            .map_err(|_| Errors::FontFiled)?;
+            .map_err(|_| Errors::FileFailed)?;
 
         let font = Font::try_from_vec(font_data)
-            .ok_or(Errors::FontFiled)?;
+            .ok_or(Errors::FileFailed)?;
 
         Ok(Self {
             text,
@@ -717,6 +740,7 @@ impl Text<'_> {
             },
             position,
             font,
+            color
         })
     }
 }
@@ -733,7 +757,7 @@ impl Disp for Text<'_> {
                         let py: isize = (self.position.get_y() + (y as i32 + bb.min.y) as isize).try_into().unwrap();
                         if px >= 0 && py >= 0 && (px) < sys.get_width().try_into().unwrap() && (py) < sys.get_height().try_into().unwrap() {
                             let intensity = (v * 255.0) as u8;
-                            sys.insert(Color::init_rgb(intensity,intensity,intensity), px, py);
+                            sys.insert(Color::init(self.color.red,self.color.green,self.color.blue,intensity), px, py);
                         }
                     }
                 });
@@ -744,5 +768,49 @@ impl Disp for Text<'_> {
 
     fn vertix(&mut self,sys : &mut System) {
         self.display(sys);
+    }
+}
+
+pub struct Image {
+    pub file_path : String,
+    pub position : Vector,
+}
+
+impl Image {
+    pub fn init(
+        file_path : String,
+        position : Vector,
+    ) -> Result<Self, Errors> {
+        _ = image::open(&Path::new(&file_path))
+            .map_err(|_| Errors::FileFailed)?;
+
+        Ok(Self {
+            file_path,
+            position,
+        })
+    }
+}
+
+impl Disp for Image {
+    fn display(&mut self,sys : &mut System) {
+        let img = image::open(&Path::new(&self.file_path))
+            .map_err(|_| Errors::FileFailed).unwrap();
+
+        for (x, y, pixel) in img.pixels() {
+            let red = pixel.channels4().0;
+            let green = pixel.channels4().1;
+            let blue = pixel.channels4().2;
+            let alpha = pixel.channels4().3;
+
+            sys.insert(
+                Color::init(red,green,blue,alpha),
+                self.position.get_x() + x as isize,
+                self.position.get_y() + y as isize
+            );
+        }
+    }
+
+    fn vertix(&mut self,sys : &mut System) {
+        self.display(sys)
     }
 }
