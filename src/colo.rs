@@ -1,10 +1,6 @@
 use std::collections::HashSet;
 use std::path::Path;
-<<<<<<< HEAD
-use image::{ImageBuffer, Rgb, GenericImageView, Pixel};
-=======
 use image::{ImageBuffer, Rgba, GenericImageView};
->>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
 use rusttype::{Font, Scale,point};
 use std::fs;
 
@@ -162,22 +158,12 @@ impl System {
     }
 
     pub fn insert_v(&mut self,c : Color,v : Vector) {
-<<<<<<< HEAD
-        let (x, y) = v.get_axis(); 
-        if (x >= 0 && x < self.width.try_into().unwrap()) && (y >= 0 && y < self.height.try_into().unwrap() && c.alpha != 0) {
-            self.pixels[y as usize][x as usize] = c;
-        }
-=======
         let (x, y) = v.get_axis();
         self.insert(c,x,y)
->>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
     }
 
     pub fn insert(&mut self,c : Color,x : isize,y : isize) {
         if (x >= 0 && x < self.width.try_into().unwrap()) && (y >= 0 && y < self.height.try_into().unwrap() && c.alpha != 0) {
-<<<<<<< HEAD
-            self.pixels[y as usize][x as usize] = c;
-=======
             let src_a = c.alpha as f32 / 255.0;
             let dst_a = self.pixels[y as usize][x as usize].alpha as f32 / 255.0;
 
@@ -201,7 +187,6 @@ impl System {
             self.pixels[y as usize][x as usize].green= out_green.clamp(0.0, 255.0) as u8;
             self.pixels[y as usize][x as usize].blue = out_blue.clamp(0.0, 255.0) as u8;
             self.pixels[y as usize][x as usize].alpha= (out_alpha * 255.0).clamp(0.0, 255.0) as u8;
->>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
         }
     }
 
@@ -818,24 +803,17 @@ impl Disp for Text<'_> {
 
 pub struct Image {
     pub file_path : String,
-<<<<<<< HEAD
-    pub position : Vector,
-=======
     pub position  : Vector,
     pub height    : usize,
     pub width     : usize,
->>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
 }
 
 impl Image {
     pub fn init(
         file_path : String,
         position : Vector,
-<<<<<<< HEAD
-=======
         height    : usize,
         width     : usize,
->>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
     ) -> Result<Self, Errors> {
         _ = image::open(&Path::new(&file_path))
             .map_err(|_| Errors::FileFailed)?;
@@ -843,33 +821,13 @@ impl Image {
         Ok(Self {
             file_path,
             position,
-<<<<<<< HEAD
-=======
             height,
             width
->>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
         })
     }
 }
 
 impl Disp for Image {
-<<<<<<< HEAD
-    fn display(&mut self,sys : &mut System) {
-        let img = image::open(&Path::new(&self.file_path))
-            .map_err(|_| Errors::FileFailed).unwrap();
-
-        for (x, y, pixel) in img.pixels() {
-            let red = pixel.channels4().0;
-            let green = pixel.channels4().1;
-            let blue = pixel.channels4().2;
-            let alpha = pixel.channels4().3;
-
-            sys.insert(
-                Color::init(red,green,blue,alpha),
-                self.position.get_x() + x as isize,
-                self.position.get_y() + y as isize
-            );
-=======
     fn display(&mut self, sys: &mut System) {
         let img = image::open(&Path::new(&self.file_path))
             .map_err(|_| Errors::FileFailed)
@@ -892,7 +850,6 @@ impl Disp for Image {
                     self.position.add(col as isize, row as isize),
                 );
             }
->>>>>>> b1a0196 (Fix Some Bugs, alpha, image resizing)
         }
     }
 
